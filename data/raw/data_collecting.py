@@ -47,7 +47,8 @@ def decode_message(message: str) -> dict:
 
 def get_current_batch_info():
     """Find the most recent batch file and return batch number and existing records."""
-    batch_files = sorted(Path('.').glob('lightning_batch_*.parquet'))
+    script_dir = Path(__file__).parent
+    batch_files = sorted(script_dir.glob('lightning_batch_*.parquet'))
     
     if not batch_files:
         return 0, []
@@ -69,15 +70,15 @@ BATCH_SIZE = 100000
 MAX_BATCHES = 100
 RECONNECT_DELAY = 3
 SAVE_INTERVAL = 10000  # Save progress every 10k strikes (~5-10 strikes/s, takes ~30m)
-
 async def save_batch_async(records, batch_num, is_complete=False):
     """Save batch in a thread pool to avoid blocking."""
     def _save():
         df = pd.DataFrame(records)
-        filename = f'lightning_batch_{batch_num:04d}.parquet'
+        script_dir = Path(__file__).parent
+        filename = script_dir / f'lightning_batch_{batch_num:04d}.parquet'
         df.to_parquet(filename, index=False, compression='snappy', engine='pyarrow')
-        return filename, len(df)
-    
+        return filename.name, len(df)  # Return just filename, not full path
+
     # Run blocking I/O in thread pool
     loop = asyncio.get_event_loop()
     filename, count = await loop.run_in_executor(None, _save)
