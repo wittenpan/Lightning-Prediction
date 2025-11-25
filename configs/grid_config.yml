@@ -1,0 +1,127 @@
+h3:
+  resolution: 7
+  avg_area_km2: 5.16
+  avg_edge_length_km: 2.7
+  max_neighbor_distance_km: 50
+temporal:
+  # Historical look-back windows (in minutes)
+  # Used for extracting temporal features from past strikes
+  lookback_windows:
+    - 5    # Very recent activity
+    - 15   # Short-term patterns
+    - 30   # Medium-term evolution
+    - 60   # Longer-term context
+    - 90   # Extended historical context
+  prediction_horizon_min: 15
+  prediction_horizon_max: 60
+  default_prediction_window: 15
+  aggregation_interval: 5
+  max_data_age: 120
+
+
+# Spatial Features Configuration
+# ----------------------------------------------------------------------------
+spatial:
+  # Neighbor ring levels for spatial features
+  # ring 1 = immediate neighbors (6 hexagons)
+  # ring 2 = second-order neighbors (12 hexagons)
+  neighbor_rings: [1,2]
+  
+  use_grid_distance: true
+  use_geographic_distance: true
+  clustering:
+    enabled: true
+    min_strikes_for_cluster: 3
+    max_cluster_distance_km: 15
+target:
+
+  strike_threshold: 3  # CHANGED: ≥3 strikes = persistent dangerous activity (95th percentile)
+
+  # Alternative thresholds to experiment with
+  alternative_thresholds:
+    - 2   # More sensitive
+    - 5   # Original threshold (too extreme, 99th percentile)
+    - 10  # Very conservative
+    - 15  # Extreme events only
+  min_lookback_strikes: 1
+
+features:
+  # Temporal features to calculate
+  temporal_features:
+    - strike_count        # Raw count in each window
+    - strike_rate         # Strikes per minute
+    - strike_acceleration # Rate of change in strike frequency
+    - time_since_last     # Minutes since last strike in cell
+    - strike_density      # Strikes per km²
+  
+  # Spatial features to calculate
+  spatial_features:
+    - neighbor_count      # Strikes in neighboring cells
+    - neighbor_density    # Average strikes per neighbor
+    - max_neighbor        # Highest strike count in neighbors
+    - spatial_gradient    # Difference between cell and neighbors
+    - cluster_size        # Size of active cluster (if in one)
+  
+  pattern_features:
+    - hour_of_day         # 0-23
+    - time_of_day_cat     # Morning/Afternoon/Evening/Night
+    - day_of_week         # 0-6
+
+
+# Data Quality & Filtering
+# ----------------------------------------------------------------------------
+quality:
+  # Minimum strikes in training window for valid sample
+  min_training_strikes: 1
+  
+  # Remove cells with too few observations
+  min_observations_per_cell: 5
+  
+  # Handle missing data
+  fill_missing_with_zero: true
+  
+  # Outlier detection
+  outlier_threshold_std: 5.0
+
+paths:
+  raw_data: "data/raw"
+  processed_data: "data/processed"
+  grid_cache: "data/processed/grid_features"
+
+  features_train: "features_train.parquet"
+  features_test: "features_test.parquet"
+  labels_train: "labels_train.parquet"
+  labels_test: "labels_test.parquet"
+
+
+data_split:
+  method: "temporal"
+  
+  # Train on first X%, test on remaining
+  train_ratio: 0.7
+
+  validation_ratio: 0.15
+
+
+# Performance & Optimization
+# ----------------------------------------------------------------------------
+performance:
+  # Parallel processing
+  n_jobs: -1  # Use all available cores
+  
+  # Batch size for processing
+  batch_size: 10000
+  
+  # Cache computed features
+  cache_features: true
+  
+  # Memory limits
+  max_memory_gb: 8
+
+
+# Logging & Debugging
+# ----------------------------------------------------------------------------
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  log_features: true
+  log_grid_stats: true

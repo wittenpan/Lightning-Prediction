@@ -1,0 +1,40 @@
+{
+  "evaluation_date": "2025-11-24T15:28:17.323940",
+  "horizon": "15min",
+  "stage1_metrics": {
+    "accuracy": 0.9841288309959345,
+    "roc_auc": 0.8263469133859486,
+    "avg_precision": 0.5515718863737482,
+    "true_negatives": 7171288,
+    "false_positives": 89889,
+    "false_negatives": 26465,
+    "true_positives": 43513,
+    "precision": 0.3261795175484625,
+    "recall": 0.6218097116236532,
+    "f1_score": 0.42789851509489624
+  },
+  "stage2_metrics": {
+    "accuracy": 0.9787659639944607,
+    "roc_auc": 0.9405947015416415,
+    "avg_precision": 0.6696786875009668,
+    "true_negatives": 131326,
+    "false_positives": 987,
+    "false_negatives": 1911,
+    "true_positives": 2255,
+    "precision": 0.6955582973473164,
+    "recall": 0.5412866058569371,
+    "f1_score": 0.6088012958963283
+  },
+  "combined_metrics": {
+    "accuracy": 0.9991866220261336,
+    "roc_auc": 0.7836228138742082,
+    "avg_precision": 0.38627302788886236,
+    "true_negatives": 7322937,
+    "false_positives": 987,
+    "false_negatives": 4976,
+    "true_positives": 2255,
+    "precision": 0.6955582973473164,
+    "recall": 0.3118517494122528,
+    "f1_score": 0.430631146758331
+  }
+}

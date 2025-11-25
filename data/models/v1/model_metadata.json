@@ -1,0 +1,119 @@
+{
+  "best_iteration": 0,
+  "best_score": 0.9326632461914275,
+  "model_params": {
+    "max_depth": 6,
+    "learning_rate": 0.1,
+    "n_estimators": 100,
+    "objective": "binary:logistic",
+    "eval_metric": "auc",
+    "scale_pos_weight": 30,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "random_state": 42,
+    "n_jobs": -1,
+    "tree_method": "hist",
+    "early_stopping_rounds": 10
+  },
+  "validation_metrics": {
+    "accuracy": 0.9996862011293447,
+    "roc_auc": 0.9326632461914275,
+    "avg_precision": 0.35151286515252855,
+    "true_negatives": 4829604,
+    "false_positives": 0,
+    "false_negatives": 1516,
+    "true_positives": 0,
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1_score": 0.0
+  },
+  "test_metrics": {
+    "accuracy": 0.9992744953551144,
+    "roc_auc": 0.9537486480297036,
+    "avg_precision": 0.3650990220485513,
+    "true_negatives": 4827615,
+    "false_positives": 0,
+    "false_negatives": 3505,
+    "true_positives": 0,
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1_score": 0.0
+  },
+  "top_features": [
+    {
+      "feature": "neighbor_count_ring2",
+      "importance": 0.5419716238975525
+    },
+    {
+      "feature": "neighbor_density_ring2",
+      "importance": 0.31887325644493103
+    },
+    {
+      "feature": "strike_density_5min",
+      "importance": 0.034178540110588074
+    },
+    {
+      "feature": "strike_rate_5min",
+      "importance": 0.029134582728147507
+    },
+    {
+      "feature": "strike_count_5min",
+      "importance": 0.026321187615394592
+    },
+    {
+      "feature": "spatial_gradient_ring1",
+      "importance": 0.022273749113082886
+    },
+    {
+      "feature": "strike_rate_30min",
+      "importance": 0.004696934018284082
+    },
+    {
+      "feature": "strike_count_15min",
+      "importance": 0.0038113698828965425
+    },
+    {
+      "feature": "strike_rate_90min",
+      "importance": 0.0022321785800158978
+    },
+    {
+      "feature": "strike_count_30min",
+      "importance": 0.0022194727789610624
+    }
+  ],
+  "training_date": "2025-11-10T11:45:39.163103",
+  "feature_count": 31,
+  "feature_names": [
+    "strike_count_5min",
+    "strike_rate_5min",
+    "strike_density_5min",
+    "strike_count_15min",
+    "strike_rate_15min",
+    "strike_density_15min",
+    "strike_count_30min",
+    "strike_rate_30min",
+    "strike_density_30min",
+    "strike_count_60min",
+    "strike_rate_60min",
+    "strike_density_60min",
+    "strike_count_90min",
+    "strike_rate_90min",
+    "strike_density_90min",
+    "strike_acceleration",
+    "time_since_last_strike",
+    "neighbor_count_ring1",
+    "neighbor_density_ring1",
+    "max_neighbor_ring1",
+    "spatial_gradient_ring1",
+    "cluster_size_ring1",
+    "neighbor_count_ring2",
+    "neighbor_density_ring2",
+    "max_neighbor_ring2",
+    "spatial_gradient_ring2",
+    "cluster_size_ring2",
+    "hour_of_day",
+    "time_of_day_cat",
+    "day_of_week",
+    "is_weekend"
+  ]
+}

@@ -1,0 +1,29 @@
+# Streaming Infrastructure Dependencies
+# Install with: pip install -r requirements-streaming.txt
+
+# Kafka
+kafka-python==2.0.2          # Kafka producer/consumer
+confluent-kafka==2.3.0       # Alternative high-performance Kafka client
+
+# Redis
+redis==5.0.1                 # Redis client for caching
+hiredis==2.3.2               # Fast Redis protocol parser
+
+# WebSocket
+websockets==12.0             # WebSocket client for Blitzortung
+aiohttp==3.9.1               # Async HTTP client (alternative)
+
+# Geospatial
+h3==3.7.6                    # H3 hexagonal hierarchical geospatial indexing
+
+# Async
+asyncio                      # Async I/O (included in Python 3.7+)
+aioredis==2.0.1             # Async Redis client (optional)
+
+# Monitoring & Metrics
+prometheus-client==0.19.0    # Prometheus metrics exporter
+py-cpuinfo==9.0.0           # CPU information for monitoring
+
+# Utilities
+python-dateutil==2.8.2      # Date/time utilities
+pytz==2023.3                # Timezone handling
