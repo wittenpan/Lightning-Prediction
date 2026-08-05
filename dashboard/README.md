@@ -26,11 +26,10 @@ mode polls `http://127.0.0.1:8765/api/state` every two seconds.
 ## AWS connection
 
 The EC2 security group has no inbound application ports. Start the SSM tunnel
-printed by the CloudFormation `DashboardPortForwardCommand` output, run
-`npm run dev`, visit `http://localhost:3000`, and select **Live AWS**. The tunnel
-exposes neither Redis nor the dashboard API publicly. The hosted site remains a
-self-contained preview because browser security can block an HTTPS page from
-fetching a local HTTP tunnel.
+printed by the CloudFormation `DashboardPortForwardCommand` output, visit the
+private hosted dashboard, and select **Live AWS**. The tunnel exposes neither
+Redis nor the dashboard API publicly. If a browser blocks hosted-to-loopback
+access, run `npm run dev` and use `http://localhost:3000` instead.
 
 This is a portfolio/engineering observability view, not a safety-grade weather
 warning product.
