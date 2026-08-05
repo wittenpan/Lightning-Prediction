@@ -215,7 +215,9 @@ export default function Home() {
       } catch {
         if (!cancelled) {
           setConnected(false);
-          setLastError("Start the SSM tunnel to connect live AWS state.");
+          setLastError(window.location.protocol === "https:"
+            ? "Live AWS mode runs at localhost:3000 with the SSM tunnel; hosted preview stays self-contained."
+            : "Start the SSM tunnel to connect live AWS state.");
         }
       }
     };

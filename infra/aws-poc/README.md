@@ -38,7 +38,9 @@ Get the generated port-forwarding command:
 Run the `DashboardPortForwardCommand` output and append
 `--profile lightning-poc`. It maps the EC2 loopback API to
 `http://127.0.0.1:8765` through AWS Systems Manager. No inbound application port
-is opened. Visit the private hosted dashboard and choose **Live AWS**.
+is opened. In another terminal run `cd dashboard && npm run dev`, visit
+`http://localhost:3000`, and choose **Live AWS**. The hosted dashboard remains a
+self-contained preview.
 
 ## Inspect or remove
 
