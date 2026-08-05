@@ -162,18 +162,21 @@ Resources:
       SubnetIds: [!Ref DataSubnetA, !Ref DataSubnetB]
 
   RedisCache:
-    Type: AWS::ElastiCache::CacheCluster
+    Type: AWS::ElastiCache::ReplicationGroup
     Condition: UseManagedServices
     DependsOn: CostBudget
     Properties:
+      ReplicationGroupDescription: !Sub ${ProjectName} encrypted Redis feature cache
       Engine: redis
       CacheNodeType: cache.t3.micro
-      NumCacheNodes: 1
-      Port: 6379
+      NumCacheClusters: 1
+      AutomaticFailoverEnabled: false
+      MultiAZEnabled: false
       CacheSubnetGroupName: !Ref CacheSubnetGroup
-      VpcSecurityGroupIds: [!Ref RedisSecurityGroup]
+      SecurityGroupIds: [!Ref RedisSecurityGroup]
       AutoMinorVersionUpgrade: true
       SnapshotRetentionLimit: 0
+      AtRestEncryptionEnabled: true
       TransitEncryptionEnabled: true
       Tags:
         - Key: Project
@@ -327,7 +330,7 @@ Resources:
               ManagedMskArn: !If [UseManagedServices, !Ref MskCluster, ""]
               ManagedRedisHost: !If
                 - UseManagedServices
-                - !GetAtt RedisCache.RedisEndpoint.Address
+                - !GetAtt RedisCache.PrimaryEndPoint.Address
                 - localhost
 
   CostBudget:
@@ -490,7 +493,7 @@ Outputs:
   ManagedRedisEndpoint:
     Value: !If
       - UseManagedServices
-      - !GetAtt RedisCache.RedisEndpoint.Address
+      - !GetAtt RedisCache.PrimaryEndPoint.Address
       - not-created
   AutoDeleteAfterHours:
     Value: !Ref AutoDeleteHours
