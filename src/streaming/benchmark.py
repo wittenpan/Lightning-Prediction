@@ -60,8 +60,16 @@ def run_benchmark(events: int, rate: float, timeout_s: float) -> Dict[str, Any]:
         consumer_timeout_ms=500,
         **kafka_options,
     )
-    # Force partition assignment before traffic is published.
-    output_consumer.poll(timeout_ms=1000)
+    # Force partition assignment before traffic is published. A managed MSK
+    # consumer-group join can take several seconds, so a single short poll can
+    # start the benchmark after its first predictions have already passed.
+    assignment_deadline = time.monotonic() + min(timeout_s, 15.0)
+    while not output_consumer.assignment() and time.monotonic() < assignment_deadline:
+        output_consumer.poll(timeout_ms=500)
+    if not output_consumer.assignment():
+        output_consumer.close()
+        raise RuntimeError("prediction topic assignment timed out")
+    output_consumer.seek_to_end(*output_consumer.assignment())
     producer = KafkaProducer(
         bootstrap_servers=settings.kafka_bootstrap_servers,
         value_serializer=lambda value: json.dumps(value).encode("utf-8"),
