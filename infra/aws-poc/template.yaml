@@ -276,7 +276,8 @@ Resources:
               set -euxo pipefail
               exec > >(tee /var/log/lightning-bootstrap.log) 2>&1
 
-              dnf install -y docker git curl
+              # Amazon Linux 2023 includes curl-minimal; installing full curl conflicts with it.
+              dnf install -y docker git
               systemctl enable --now docker
               if ! command -v aws >/dev/null 2>&1; then dnf install -y awscli-2; fi
 
