@@ -332,6 +332,7 @@ Resources:
 
   CostBudget:
     Type: AWS::Budgets::Budget
+    DependsOn: BudgetAlarmSubscription
     Properties:
       Budget:
         BudgetName: !Sub ${ProjectName}-monthly-cost
@@ -365,6 +366,8 @@ Resources:
           Subscribers:
             - Address: !Ref BudgetEmail
               SubscriptionType: EMAIL
+            - Address: !Ref BudgetAlarmTopic
+              SubscriptionType: SNS
 
   AutoDeleteRole:
     Type: AWS::IAM::Role
@@ -409,7 +412,47 @@ Resources:
           def handler(event, context):
               stack_name = os.environ["STACK_NAME"]
               boto3.client("cloudformation").delete_stack(StackName=stack_name)
-              return {"deleting": stack_name}
+              return {"deleting": stack_name, "trigger": event.get("Records", "ttl")}
+
+  BudgetAlarmTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub ${ProjectName}-budget-auto-delete
+
+  BudgetAlarmTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics: [!Ref BudgetAlarmTopic]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowAwsBudgetsPublish
+            Effect: Allow
+            Principal:
+              Service: budgets.amazonaws.com
+            Action: sns:Publish
+            Resource: !Ref BudgetAlarmTopic
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+              ArnLike:
+                aws:SourceArn: !Sub arn:${AWS::Partition}:budgets::${AWS::AccountId}:*
+
+  BudgetAlarmInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref AutoDeleteFunction
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref BudgetAlarmTopic
+
+  BudgetAlarmSubscription:
+    Type: AWS::SNS::Subscription
+    DependsOn: BudgetAlarmInvokePermission
+    Properties:
+      Protocol: lambda
+      Endpoint: !GetAtt AutoDeleteFunction.Arn
+      TopicArn: !Ref BudgetAlarmTopic
 
   AutoDeleteRule:
     Type: AWS::Events::Rule
@@ -451,3 +494,6 @@ Outputs:
       - not-created
   AutoDeleteAfterHours:
     Value: !Ref AutoDeleteHours
+  MonthlyBudgetGuardrailUsd:
+    Description: Account cost budget; 100% actual-spend alert invokes stack deletion.
+    Value: !Ref MonthlyBudgetUsd

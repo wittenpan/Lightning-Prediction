@@ -8,8 +8,10 @@ The CloudFormation stack supports two modes:
   containerized application services.
 
 Managed mode is intentionally short lived. It creates billable services, even
-when EC2 reports free-tier eligibility. A monthly budget alert and an automatic
-stack deletion timer are guardrails, not a hard spending limit.
+when EC2 reports free-tier eligibility. The $10 monthly budget emails at 50%,
+80%, and 100%; its 100% actual-spend notification also invokes stack deletion.
+The four-hour TTL deletes independently. AWS cost data is delayed, so neither
+mechanism is a real-time hard spending cap.
 
 ## Deploy
 
