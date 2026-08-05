@@ -1,0 +1,12 @@
+host: ${REDIS_HOST:-localhost}
+port: ${REDIS_PORT:-6379}
+db: ${REDIS_DB:-0}
+ssl: ${REDIS_SSL:-false}
+ttl_seconds:
+  strikes: 7200
+  features: 600
+  predictions: 300
+data_structures:
+  strike_history: sorted_set
+  neighbors: set
+  predictions: json_string

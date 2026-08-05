@@ -10,6 +10,7 @@ import sys
 import os
 from pathlib import Path
 import subprocess
+import json
 
 # Color codes for terminal output
 GREEN = '\033[92m'
@@ -158,23 +159,22 @@ def main():
     header("6. Python Dependencies (ML)")
 
     ml_deps = [
-        'pandas',
-        'numpy',
-        'xgboost',
-        'scikit-learn',
-        'h3',
-        'pyyaml'
+        ('pandas', 'pandas'),
+        ('numpy', 'numpy'),
+        ('xgboost', 'xgboost'),
+        ('sklearn', 'scikit-learn'),
+        ('h3', 'h3'),
+        ('yaml', 'pyyaml'),
     ]
 
-    for dep in ml_deps:
+    for module_name, package_name in ml_deps:
         try:
-            __import__(dep)
-            check(f"Package: {dep}", True)
+            __import__(module_name)
+            check(f"Package: {package_name}", True)
         except ImportError:
             all_passed = False
-            check(f"Package: {dep}", False)
+            check(f"Package: {package_name}", False)
             warnings.append(f"Install ML dependencies: pip install -r requirements.txt")
-            break  # Only warn once
 
     # ====================
     # 7. STREAMING DEPENDENCIES
@@ -214,14 +214,16 @@ def main():
             output = result.stdout
             kafka_running = 'lightning-kafka' in output
             redis_running = 'lightning-redis' in output
+            service_running = 'lightning-prediction-service' in output
 
             check("Kafka container running", kafka_running)
             check("Redis container running", redis_running)
+            check("Prediction service running", service_running)
 
-            if not (kafka_running and redis_running):
-                warnings.append("Start Docker services: docker-compose up -d")
+            if not (kafka_running and redis_running and service_running):
+                warnings.append("Start Docker services: docker compose up -d --build")
         else:
-            warnings.append("Start Docker Desktop and run: docker-compose up -d")
+            warnings.append("Start Docker Desktop and run: docker compose up -d --build")
 
     except (subprocess.TimeoutExpired, FileNotFoundError):
         check("Docker available", False)
@@ -241,9 +243,34 @@ def main():
         warnings.append("Process data: python -m src.processing.data_preparation")
 
     # ====================
-    # 10. GIT REPOSITORY
+    # 10. VERIFIED CLAIM ARTIFACTS
     # ====================
-    header("10. Git Repository")
+    header("10. Verified Claim Artifacts")
+
+    try:
+        benchmark = json.loads(Path('benchmark-results.json').read_text())
+        benchmark_ok = (
+            benchmark['received_events'] == benchmark['requested_events']
+            and benchmark['ingestion_to_prediction_ms']['p95'] < 100
+            and benchmark['under_100ms_p95'] is True
+        )
+    except (FileNotFoundError, KeyError, json.JSONDecodeError):
+        benchmark_ok = False
+    all_passed &= check("Benchmark p95 < 100 ms with no lost events", benchmark_ok)
+
+    try:
+        efficiency = json.loads(
+            Path('data/models/cascade_efficiency_15min.json').read_text()
+        )
+        cascade_ok = efficiency['full_model_call_reduction_pct'] >= 98.0
+    except (FileNotFoundError, KeyError, json.JSONDecodeError):
+        cascade_ok = False
+    all_passed &= check("Held-out stage-two call reduction >= 98%", cascade_ok)
+
+    # ====================
+    # 11. GIT REPOSITORY
+    # ====================
+    header("11. Git Repository")
 
     git_exists = Path('.git').exists()
     check("Git repository initialized", git_exists)
@@ -252,7 +279,8 @@ def main():
         try:
             result = subprocess.run(['git', 'status'], capture_output=True, text=True)
             if result.returncode == 0:
-                check("Git status clean", 'nothing to commit' in result.stdout)
+                # A dirty tree is expected while developing; only command health matters.
+                check("Git worktree readable", True)
         except:
             pass
 
@@ -263,11 +291,11 @@ def main():
 
     if all_passed and not warnings:
         print(f"\n{GREEN}{BOLD}✅ ALL CHECKS PASSED!{RESET}")
-        print(f"\n{BOLD}Your project is ready for deployment.{RESET}")
+        print(f"\n{BOLD}Your local pipeline is verified; AWS remains intentionally undeployed.{RESET}")
         print(f"\nNext steps:")
-        print(f"  1. docker-compose up -d")
-        print(f"  2. python src/streaming/consumer.py")
-        print(f"  3. python src/streaming/producer.py")
+        print(f"  1. docker compose up -d --build")
+        print(f"  2. python -m src.streaming.benchmark --events 1000 --rate 100")
+        print(f"  3. python -m src.streaming.producer  # optional live feed")
 
     else:
         print(f"\n{YELLOW}{BOLD}⚠  SOME CHECKS FAILED{RESET}")

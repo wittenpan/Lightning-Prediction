@@ -1,0 +1,116 @@
+import json
+from pathlib import Path
+
+import fakeredis
+import pytest
+
+from src.streaming.consumer import LightningPredictionConsumer
+from src.streaming.models import TwoStageXGBoostCascade
+from src.streaming.producer import LightningStrikeProducer
+from src.streaming.redis_cache import LightningCache
+from src.streaming.schema import decode_blitzortung_message, make_event, normalize_timestamp_us
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (1_762_749_762, 1_762_749_762_000_000),
+        (1_762_749_762_123, 1_762_749_762_123_000),
+        (1_762_749_762_123_456, 1_762_749_762_123_456),
+        (1_762_749_762_123_456_789, 1_762_749_762_123_456),
+    ],
+)
+def test_timestamp_normalization(value, expected):
+    assert normalize_timestamp_us(value) == expected
+
+
+def test_wire_event_has_stable_microsecond_schema():
+    event = make_event({"lat": 28.5, "lon": -81.4, "time": 1_762_749_762_123_456_789})
+    assert event["timestamp"] == 1_762_749_762_123_456
+    assert event["timestamp_unit"] == "microseconds"
+    assert len(event["event_id"]) == 24
+    assert event["ingested_at_ns"] > 0
+
+
+def test_live_style_lzw_message_with_json_prefix_decodes():
+    raw = '{"time":1762749762911321600,"lat":28.5,"lon":-81.4}'
+    dictionary = {chr(i): i for i in range(256)}
+    dictionary_size = 256
+    current = ""
+    codes = []
+    for char in raw:
+        candidate = current + char
+        if candidate in dictionary:
+            current = candidate
+        else:
+            codes.append(dictionary[current])
+            dictionary[candidate] = dictionary_size
+            dictionary_size += 1
+            current = char
+    if current:
+        codes.append(dictionary[current])
+    compressed = "".join(chr(code) for code in codes)
+    assert compressed.startswith("{")
+    assert decode_blitzortung_message(compressed) == json.loads(raw)
+
+
+def test_producer_parses_plain_fixture_without_real_kafka():
+    producer = LightningStrikeProducer.__new__(LightningStrikeProducer)
+    producer.errors = 0
+    strike = producer.parse_strike(json.dumps({"lat": 28.5, "lon": -81.4, "time": 1_762_749_762_123_456_789}))
+    assert strike["latitude"] == 28.5
+    assert strike["timestamp"] == 1_762_749_762_123_456
+    assert producer.errors == 0
+
+
+def test_redis_keeps_simultaneous_strikes():
+    cache = LightningCache.__new__(LightningCache)
+    cache.redis = fakeredis.FakeRedis(decode_responses=False)
+    cache.STRIKE_TTL = 7200
+    timestamp = 1_762_749_762_123_456
+    cache.add_strike("cell", timestamp, "event-a")
+    cache.add_strike("cell", timestamp, "event-b")
+    assert cache.get_strike_count("cell", timestamp, timestamp) == 2
+    assert cache.get_strikes("cell", timestamp, timestamp) == [timestamp, timestamp]
+
+
+class FeatureCache:
+    def get_neighbors(self, _cell, ring):
+        return {f"ring{ring}-a", f"ring{ring}-b"}
+
+    def get_feature_counts(self, **_kwargs):
+        return (
+            {"5min": 6, "15min": 9, "30min": 12, "60min": 15, "90min": 18},
+            {1: [3, 1], 2: [0, 6]},
+        )
+
+
+def test_online_features_match_training_definitions():
+    service = LightningPredictionConsumer.__new__(LightningPredictionConsumer)
+    service.h3_resolution = 7
+    service.feature_windows = {
+        f"{window}min": window * 60 * 1_000_000 for window in (5, 15, 30, 60, 90)
+    }
+    service.cache = FeatureCache()
+    service.cache_hits = 0
+    service.cache_misses = 0
+    features = service.compute_features("cell", 1_762_749_762_123_456)
+    metadata = json.loads(Path("data/models/stage1_metadata_15min.json").read_text())
+    assert set(features) == set(metadata["feature_names"])
+    assert features["neighbor_count_ring1"] == 4
+    assert features["neighbor_density_ring1"] == 2
+    assert features["spatial_gradient_ring1"] == 4
+    assert features["cluster_size_ring1"] == 1
+    assert features["time_since_last_strike"] == 5.0
+    assert features["time_of_day_cat"] in {0.0, 1.0, 2.0, 3.0}
+
+
+def test_committed_cascade_loads_tuned_thresholds_and_gates():
+    cascade = TwoStageXGBoostCascade()
+    features = {name: 0.0 for name in cascade.feature_names}
+    features["time_since_last_strike"] = 5.0
+    result = cascade.predict(features)
+    assert cascade.stage1_threshold == pytest.approx(0.71)
+    assert cascade.stage2_threshold == pytest.approx(0.78)
+    assert result["stage2"]["executed"] is False
+    assert cascade.stage2_skip_rate == 1.0

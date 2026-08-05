@@ -1,0 +1,7 @@
+# Minimal dependencies for the online producer/consumer containers.
+numpy>=1.26,<3
+xgboost>=2.0,<4
+h3>=4.1,<5
+kafka-python>=2.2,<3
+redis>=5,<7
+websockets>=12,<16

@@ -1,0 +1,8 @@
+model_dir: ${MODEL_DIR:-data/models}
+horizon: 15min
+threshold_source: data/models/tuned_thresholds_15min.json
+feature_schema_source: data/models/stage1_metadata_15min.json
+cascade:
+  stage1: activity_filter
+  stage2: intensity_model
+  run_stage2_only_when_stage1_positive: true

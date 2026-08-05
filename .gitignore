@@ -1,0 +1,14 @@
+lightning_batch_*.parquet
+features*.parquet
+labels*.parquet
+metadata.json
+.venv/
+.env
+.env.*
+!.env.example
+.DS_Store
+.claude/
+*.parquet
+__pycache__/
+*.py[cod]
+.pytest_cache/

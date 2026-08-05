@@ -1,45 +1,34 @@
-version: '3.8'
-
 services:
-  # Zookeeper (required for Kafka)
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.5.0
-    hostname: zookeeper
-    container_name: lightning-zookeeper
-    ports:
-      - "2181:2181"
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    networks:
-      - lightning-network
-    restart: unless-stopped
-
-  # Kafka Broker
+  # Apache Kafka in single-node KRaft mode (no ZooKeeper process required).
   kafka:
-    image: confluentinc/cp-kafka:7.5.0
+    image: apache/kafka-native:3.9.1
     hostname: kafka
     container_name: lightning-kafka
-    depends_on:
-      - zookeeper
     ports:
       - "9092:9092"
-      - "9101:9101"
     environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: CONTROLLER://:9093,PLAINTEXT://:29092,PLAINTEXT_HOST://:9092
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
-      KAFKA_METRIC_REPORTERS: io.confluent.metrics.reporter.ConfluentMetricsReporter
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      KAFKA_CONFLUENT_METRICS_REPORTER_BOOTSTRAP_SERVERS: kafka:29092
-      KAFKA_CONFLUENT_METRICS_REPORTER_TOPIC_REPLICAS: 1
-      KAFKA_CONFLUENT_METRICS_ENABLE: 'true'
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
     networks:
       - lightning-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "bash -ec ': >/dev/tcp/127.0.0.1/29092'"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
 
   # Redis Cache
   redis:
@@ -60,6 +49,45 @@ services:
       timeout: 3s
       retries: 3
 
+  prediction-service:
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+    container_name: lightning-prediction-service
+    init: true
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_INPUT_TOPIC: lightning-strikes
+      KAFKA_OUTPUT_TOPIC: lightning-predictions
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      MODEL_DIR: /app/data/models
+    networks:
+      - lightning-network
+    restart: unless-stopped
+
+  live-producer:
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+    profiles: ["live"]
+    init: true
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command: ["python", "-m", "src.streaming.producer"]
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_INPUT_TOPIC: lightning-strikes
+    networks:
+      - lightning-network
+    restart: unless-stopped
+
   # Kafka UI (optional - for monitoring)
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
@@ -71,10 +99,10 @@ services:
     environment:
       KAFKA_CLUSTERS_0_NAME: lightning-cluster
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
-      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
     networks:
       - lightning-network
     restart: unless-stopped
+    profiles: ["tools"]
 
   # Redis Commander (optional - for monitoring Redis)
   redis-commander:
@@ -89,6 +117,27 @@ services:
     networks:
       - lightning-network
     restart: unless-stopped
+    profiles: ["tools"]
+
+  benchmark:
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+    profiles: ["benchmark"]
+    depends_on:
+      prediction-service:
+        condition: service_started
+    command: ["python", "-m", "src.streaming.benchmark", "--events", "1000", "--rate", "100"]
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_INPUT_TOPIC: lightning-strikes
+      KAFKA_OUTPUT_TOPIC: lightning-predictions
+      BENCHMARK_OUTPUT: /results/benchmark-results.json
+    volumes:
+      - .:/results
+    working_dir: /app
+    networks:
+      - lightning-network
 
 networks:
   lightning-network:

@@ -1,0 +1,42 @@
+services:
+  topic-init:
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+    init: true
+    env_file: .env.aws
+    command: ["python", "-m", "src.streaming.create_topics"]
+    restart: "no"
+
+  prediction-service:
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+    init: true
+    env_file: .env.aws
+    depends_on:
+      topic-init:
+        condition: service_completed_successfully
+    command: ["python", "-m", "src.streaming.consumer"]
+    restart: unless-stopped
+
+  live-producer:
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+    init: true
+    env_file: .env.aws
+    depends_on:
+      topic-init:
+        condition: service_completed_successfully
+    command: ["python", "-m", "src.streaming.producer"]
+    restart: unless-stopped
+
+  benchmark:
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+    profiles: ["benchmark"]
+    init: true
+    env_file: .env.aws
+    command: ["python", "-m", "src.streaming.benchmark", "--events", "1000", "--rate", "100", "--timeout", "60"]

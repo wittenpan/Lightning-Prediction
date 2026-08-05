@@ -13,9 +13,8 @@ Uses Redis Sorted Sets for time-series data with automatic expiration.
 import json
 import logging
 import redis
-from typing import Dict, List, Optional, Any, Set
-from datetime import datetime, timedelta
-import numpy as np
+from typing import Dict, List, Optional, Any, Set, Sequence, Tuple
+from datetime import datetime
 
 logging.basicConfig(
     level=logging.INFO,
@@ -47,7 +46,8 @@ class LightningCache:
         host: str = 'localhost',
         port: int = 6379,
         db: int = 0,
-        password: Optional[str] = None
+        password: Optional[str] = None,
+        ssl: bool = False,
     ):
         """
         Initialize Redis connection.
@@ -63,6 +63,7 @@ class LightningCache:
             port=port,
             db=db,
             password=password,
+            ssl=ssl,
             decode_responses=False,  # We'll handle encoding
             socket_timeout=5,
             socket_connect_timeout=5,
@@ -84,7 +85,12 @@ class LightningCache:
 
     # ===== STRIKE MANAGEMENT =====
 
-    def add_strike(self, h3_cell: str, timestamp_us: int):
+    def add_strike(
+        self,
+        h3_cell: str,
+        timestamp_us: int,
+        event_id: Optional[str] = None,
+    ):
         """
         Add strike to cell's strike history (sorted set by timestamp).
 
@@ -94,11 +100,13 @@ class LightningCache:
         """
         key = f"strikes:{h3_cell}"
 
-        # Add to sorted set (score = timestamp for time-ordering)
-        self.redis.zadd(key, {timestamp_us: timestamp_us})
-
-        # Set TTL
-        self.redis.expire(key, self.STRIKE_TTL)
+        # A timestamp is not unique: multiple sensors can report strikes in the
+        # same microsecond. Use the event id as member and time as sorted-set score.
+        member = event_id or str(timestamp_us)
+        pipeline = self.redis.pipeline(transaction=False)
+        pipeline.zadd(key, {member: timestamp_us})
+        pipeline.expire(key, self.STRIKE_TTL)
+        pipeline.execute()
 
     def get_strikes(
         self,
@@ -121,12 +129,37 @@ class LightningCache:
 
         # Query sorted set by score range
         strikes = self.redis.zrangebyscore(
-            key,
-            start_time_us,
-            end_time_us
+            key, start_time_us, end_time_us, withscores=True
         )
+        return [int(score) for _member, score in strikes]
 
-        return [int(s) for s in strikes]
+    def get_feature_counts(
+        self,
+        h3_cell: str,
+        neighbors_by_ring: Sequence[Tuple[int, Sequence[str]]],
+        current_time_us: int,
+        windows_us: Dict[str, int],
+        neighbor_window_us: int,
+    ) -> Tuple[Dict[str, int], Dict[int, List[int]]]:
+        """Fetch all temporal and spatial counts in one Redis round trip."""
+        pipeline = self.redis.pipeline(transaction=False)
+        primary_key = f"strikes:{h3_cell}"
+        for window_us in windows_us.values():
+            pipeline.zcount(primary_key, current_time_us - window_us, current_time_us)
+        for _ring, neighbors in neighbors_by_ring:
+            for neighbor in neighbors:
+                pipeline.zcount(
+                    f"strikes:{neighbor}",
+                    current_time_us - neighbor_window_us,
+                    current_time_us,
+                )
+        results = iter(pipeline.execute())
+        window_counts = {name: int(next(results)) for name in windows_us}
+        neighbor_counts = {
+            ring: [int(next(results)) for _neighbor in neighbors]
+            for ring, neighbors in neighbors_by_ring
+        }
+        return window_counts, neighbor_counts
 
     def get_strike_count(
         self,
@@ -266,6 +299,30 @@ class LightningCache:
             self.PREDICTION_TTL,
             json.dumps(data)
         )
+
+    def cache_prediction_pair(
+        self,
+        h3_cell: str,
+        predictions: Dict[str, Dict[str, Any]],
+        timestamp_s: int,
+    ) -> None:
+        """Cache both cascade stages in one network round trip."""
+        cached_at = datetime.utcnow().isoformat()
+        pipeline = self.redis.pipeline(transaction=False)
+        for stage_number, stage_name in ((1, "stage1"), (2, "stage2")):
+            result = predictions[stage_name]
+            payload = {
+                "prediction": int(result["prediction"]),
+                "probability": float(result["probability"]),
+                "timestamp": timestamp_s,
+                "cached_at": cached_at,
+            }
+            pipeline.setex(
+                f"prediction:{h3_cell}:stage{stage_number}",
+                self.PREDICTION_TTL,
+                json.dumps(payload),
+            )
+        pipeline.execute()
 
     def get_prediction(
         self,

@@ -1,0 +1,14 @@
+# Runtime values are supplied through environment variables; these are defaults.
+bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}
+input_topic: ${KAFKA_INPUT_TOPIC:-lightning-strikes}
+output_topic: ${KAFKA_OUTPUT_TOPIC:-lightning-predictions}
+consumer_group: ${KAFKA_CONSUMER_GROUP:-lightning-prediction-group}
+producer:
+  acks: all
+  compression_type: gzip
+  linger_ms: 5
+consumer:
+  auto_offset_reset: latest
+  max_poll_records: 100
+# For an encrypted MSK endpoint set KAFKA_SECURITY_PROTOCOL=SSL and optionally
+# KAFKA_SSL_CAFILE. SASL fields are also supported by src/streaming/settings.py.

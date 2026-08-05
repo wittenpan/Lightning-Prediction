@@ -1,0 +1,10 @@
+{
+  "source": "two_stage_evaluation_15min.json",
+  "split": "held-out temporal test set",
+  "held_out_events": 7331155,
+  "full_model_calls_without_gate": 7331155,
+  "full_model_calls_with_gate": 133402,
+  "full_model_calls_avoided": 7197753,
+  "full_model_call_reduction_pct": 98.1803,
+  "definition": "Reduction in expensive stage-two XGBoost invocations, not total process CPU time."
+}
