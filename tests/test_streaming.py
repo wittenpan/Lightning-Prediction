@@ -1,4 +1,5 @@
 import json
+import time
 from pathlib import Path
 
 import fakeredis
@@ -9,6 +10,7 @@ from src.streaming.models import TwoStageXGBoostCascade
 from src.streaming.producer import LightningStrikeProducer
 from src.streaming.redis_cache import LightningCache
 from src.streaming.schema import decode_blitzortung_message, make_event, normalize_timestamp_us
+from src.dashboard.api import build_dashboard_state
 
 
 @pytest.mark.parametrize(
@@ -114,3 +116,26 @@ def test_committed_cascade_loads_tuned_thresholds_and_gates():
     assert cascade.stage2_threshold == pytest.approx(0.78)
     assert result["stage2"]["executed"] is False
     assert cascade.stage2_skip_rate == 1.0
+
+
+def test_dashboard_state_summarizes_h3_predictions():
+    client = fakeredis.FakeRedis(decode_responses=False)
+    cell = "8744a1d92ffffff"
+    now_s = int(time.time())
+    stage1 = {
+        "prediction": 1,
+        "probability": 0.82,
+        "timestamp": now_s,
+        "metadata": {"e2e_ms": 0, "ingestion_to_prediction_ms": 12.5},
+    }
+    stage2 = {"prediction": 0, "probability": 0.33, "timestamp": now_s}
+    client.setex(f"prediction:{cell}:stage1", 300, json.dumps(stage1))
+    client.setex(f"prediction:{cell}:stage2", 300, json.dumps(stage2))
+
+    snapshot = build_dashboard_state(client)
+
+    assert snapshot["summary"]["active_cells"] == 1
+    assert snapshot["summary"]["stage1_positive_cells"] == 1
+    assert snapshot["summary"]["stage2_skip_rate"] == 0.0
+    assert snapshot["summary"]["e2e_p95_ms"] == 12.5
+    assert snapshot["cells"][0]["h3_cell"] == cell

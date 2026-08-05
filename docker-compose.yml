@@ -71,6 +71,25 @@ services:
       - lightning-network
     restart: unless-stopped
 
+  dashboard-api:
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+    profiles: ["dashboard"]
+    init: true
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: ["uvicorn", "src.dashboard.api:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    ports:
+      - "127.0.0.1:8765:8000"
+    networks:
+      - lightning-network
+    restart: unless-stopped
+
   live-producer:
     build:
       context: .

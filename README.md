@@ -24,8 +24,8 @@ Blitzortung websocket
 ## Verified results
 
 - **Latency:** 1,000 events at 100 events/second from the containerized benchmark:
-  8.997 ms p50, **18.569 ms p95**, and 49.667 ms p99 from ingestion through
-  prediction. Kafka input-to-output round trip was 53.360 ms p95. See
+  8.212 ms p50, **18.483 ms p95**, and 148.299 ms p99 from ingestion through
+  prediction. Kafka input-to-output round trip was 50.952 ms p95. See
   [`benchmark-results.json`](benchmark-results.json).
 - **Cascade savings:** on 7,331,155 held-out temporal test events, stage one
   routed 133,402 events to stage two and skipped 7,197,753, reducing expensive
@@ -89,11 +89,25 @@ python -m src.streaming.benchmark --events 1000 --rate 100 --timeout 30
 The benchmark exits non-zero if predictions are lost or p95
 ingestion-to-prediction latency reaches 100 ms.
 
-## AWS proof of concept (prepared, not deployed)
+## H3 operations dashboard
+
+The private StormSignal dashboard maps recent predictions as H3 cells and shows
+the event rate, active-cell count, cascade skip rate, latency, and stage
+probabilities. Run the local API and dashboard with:
+
+```bash
+docker compose --profile dashboard up -d --build
+cd dashboard && npm install && npm run dev
+```
+
+Open `http://localhost:3000`, select **Live AWS**, and the browser will read the
+loopback-only API at `http://127.0.0.1:8765`. Preview mode is self-contained.
+
+## AWS proof of concept
 
 No AWS resources are created by the local workflow. A guarded CloudFormation
 stack and preflight/deploy/destroy helper are documented in
-[AWS_DEPLOYMENT.md](AWS_DEPLOYMENT.md). The runtime reads all
+[`infra/aws-poc/README.md`](infra/aws-poc/README.md). The runtime reads all
 connection information from environment variables in [`.env.example`](.env.example):
 
 - `KAFKA_BOOTSTRAP_SERVERS` maps to an MSK bootstrap endpoint.

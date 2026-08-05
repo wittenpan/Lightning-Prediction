@@ -305,6 +305,7 @@ class LightningCache:
         h3_cell: str,
         predictions: Dict[str, Dict[str, Any]],
         timestamp_s: int,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Cache both cascade stages in one network round trip."""
         cached_at = datetime.utcnow().isoformat()
@@ -317,6 +318,8 @@ class LightningCache:
                 "timestamp": timestamp_s,
                 "cached_at": cached_at,
             }
+            if metadata:
+                payload["metadata"] = metadata
             pipeline.setex(
                 f"prediction:{h3_cell}:stage{stage_number}",
                 self.PREDICTION_TTL,

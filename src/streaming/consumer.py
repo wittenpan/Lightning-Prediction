@@ -178,16 +178,22 @@ class LightningPredictionConsumer:
         self.cache.add_strike(h3_cell, timestamp_us, event_id=event_id)
         features = self.compute_features(h3_cell, timestamp_us)
         prediction = self.cascade.predict(features)
-        self.cache.cache_prediction_pair(
-            h3_cell,
-            prediction,
-            timestamp_s=timestamp_us // 1_000_000,
-        )
-
         predicted_at_ns = time.time_ns()
         ingested_at_ns = int(strike.get("ingested_at_ns", processing_started_ns))
         processing_latency_ms = (predicted_at_ns - processing_started_ns) / 1_000_000
         e2e_latency_ms = max(0.0, (predicted_at_ns - ingested_at_ns) / 1_000_000)
+        self.cache.cache_prediction_pair(
+            h3_cell,
+            prediction,
+            timestamp_s=timestamp_us // 1_000_000,
+            metadata={
+                "event_id": event_id,
+                "latitude": latitude,
+                "longitude": longitude,
+                "processing_ms": round(processing_latency_ms, 3),
+                "ingestion_to_prediction_ms": round(e2e_latency_ms, 3),
+            },
+        )
         output = {
             "event_id": event_id,
             "h3_cell": h3_cell,

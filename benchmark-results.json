@@ -1,21 +1,21 @@
 {
-  "run_id": "083efcf78fc3",
+  "run_id": "6a0a69ec0068",
   "requested_events": 1000,
   "received_events": 1000,
   "input_rate_per_second": 100.0,
   "ingestion_to_prediction_ms": {
-    "p50": 8.997,
-    "p95": 18.569,
-    "p99": 49.667,
-    "mean": 10.684
+    "p50": 8.212,
+    "p95": 18.483,
+    "p99": 148.299,
+    "mean": 12.61
   },
   "kafka_round_trip_ms": {
-    "p50": 44.994,
-    "p95": 53.36,
-    "p99": 89.122
+    "p50": 44.54,
+    "p95": 50.952,
+    "p99": 191.68
   },
   "stage2_invocations": 1000,
   "stage2_skip_rate": 0.0,
   "under_100ms_p95": true,
-  "measured_at": "2026-08-05T14:55:48Z"
+  "measured_at": "2026-08-05T16:26:09Z"
 }

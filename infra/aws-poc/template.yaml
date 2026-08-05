@@ -436,6 +436,12 @@ Outputs:
     Value: !Ref AppInstance
   SessionManagerCommand:
     Value: !Sub aws ssm start-session --target ${AppInstance} --region ${AWS::Region}
+  DashboardPortForwardCommand:
+    Description: Open a private tunnel from localhost:8765 to the dashboard API.
+    Value: !Sub >-
+      aws ssm start-session --target ${AppInstance} --region ${AWS::Region}
+      --document-name AWS-StartPortForwardingSession
+      --parameters '{"portNumber":["8000"],"localPortNumber":["8765"]}'
   ManagedMskClusterArn:
     Value: !If [UseManagedServices, !Ref MskCluster, not-created]
   ManagedRedisEndpoint:
