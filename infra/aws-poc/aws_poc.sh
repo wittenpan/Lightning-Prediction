@@ -125,7 +125,7 @@ preflight() {
   validate_inputs
   require_aws
   printf 'Checking AWS caller identity in %s...\n' "$REGION"
-  aws sts get-caller-identity --output table
+  aws sts get-caller-identity --region "$REGION" --output table
   aws cloudformation validate-template \
     --template-body "file://$TEMPLATE_FILE" \
     --region "$REGION" >/dev/null
