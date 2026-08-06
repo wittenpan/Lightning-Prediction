@@ -21,7 +21,8 @@ test("keeps the API loopback-only and renders H3 polygons", async () => {
   ]);
   assert.match(page, /http:\/\/127\.0\.0\.1:8765\/api\/state/);
   assert.match(page, /cellToBoundary/);
-  assert.match(page, /h3-fill/);
+  assert.match(page, /h3-overlay/);
+  assert.match(page, /createElementNS.*polygon/s);
   assert.match(packageJson, /"h3-js"/);
   assert.match(packageJson, /"maplibre-gl"/);
   assert.doesNotMatch(packageJson, /vinext|wrangler|cloudflare/i);

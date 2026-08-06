@@ -52,6 +52,7 @@ WINDOWS_US = {
     "5m": 300_000_000,
     "30m": 1_800_000_000,
 }
+SUMMARY_CELL_LIMIT = 2_000
 
 
 def _recent_cells(client: redis.Redis, limit: int, now_s: float) -> tuple[list[str], int]:
@@ -77,10 +78,14 @@ def _recent_cells(client: redis.Redis, limit: int, now_s: float) -> tuple[list[s
 
 
 def build_dashboard_state(client: redis.Redis, limit: int = 500) -> dict[str, Any]:
-    """Build a bounded dashboard snapshot with one Redis pipeline."""
+    """Build a bounded map plus summary metrics over the full recent window."""
     now_s = time.time()
     now_us = int(now_s * 1_000_000)
-    cells, total_prediction_cells = _recent_cells(client, limit, now_s)
+    cells, total_prediction_cells = _recent_cells(
+        client,
+        max(limit, SUMMARY_CELL_LIMIT),
+        now_s,
+    )
     pipeline = client.pipeline(transaction=False)
     for cell in cells:
         pipeline.get(f"prediction:{cell}:stage1")
@@ -142,10 +147,11 @@ def build_dashboard_state(client: redis.Redis, limit: int = 500) -> dict[str, An
         name: sum(row["strike_counts"][name] for row in rows)
         for name in WINDOWS_US
     }
+    display_rows = rows[:limit]
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "summary": {
-            "active_cells": len(rows),
+            "active_cells": len(display_rows),
             "total_prediction_cells": total_prediction_cells,
             "stage1_positive_cells": sum(row["stage1_prediction"] for row in rows),
             "stage2_positive_cells": sum(row["stage2_prediction"] for row in rows),
@@ -159,7 +165,7 @@ def build_dashboard_state(client: redis.Redis, limit: int = 500) -> dict[str, An
             "overall_stage2_skip_rate": 1.0 - stage2_calls / len(rows) if rows else 0.0,
             "e2e_p95_ms": e2e_values[p95_index] if e2e_values else 0.0,
         },
-        "cells": rows,
+        "cells": display_rows,
     }
 
 

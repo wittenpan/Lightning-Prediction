@@ -120,27 +120,6 @@ function riskLabel(probability: number) {
   return { label: "LOW", className: "low" };
 }
 
-function cellsGeoJson(cells: Cell[], windowKey: WindowKey) {
-  return {
-    type: "FeatureCollection" as const,
-    features: cells.map((cell) => {
-      const boundary = cellToBoundary(cell.h3_cell).map(([lat, lng]) => [lng, lat]);
-      return {
-        type: "Feature" as const,
-        geometry: { type: "Polygon" as const, coordinates: [[...boundary, boundary[0]]] },
-        properties: {
-          h3_cell: cell.h3_cell,
-          probability: cell.stage1_probability,
-          intensity: cell.stage2_probability,
-          window_count: cell.strike_counts[windowKey] ?? 0,
-          stage2_executed: Number(cell.stage2_executed),
-          combined_prediction: cell.combined_prediction,
-        },
-      };
-    }),
-  };
-}
-
 function H3Map({
   cells,
   windowKey,
@@ -155,9 +134,14 @@ function H3Map({
   onSelect: (cell: string) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<SVGSVGElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const lastFitKeyRef = useRef("");
   const onSelectRef = useRef(onSelect);
+  const cellsRef = useRef(cells);
+  const windowRef = useRef(windowKey);
+  const selectedRef = useRef(selectedCell);
+  const drawOverlayRef = useRef<() => void>(() => undefined);
 
   useEffect(() => {
     onSelectRef.current = onSelect;
@@ -196,63 +180,58 @@ function H3Map({
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
     map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
-    map.on("load", () => {
-      map.addSource("h3-cells", { type: "geojson", data: cellsGeoJson([], "5m") });
-      map.addLayer({
-        id: "h3-glow",
-        type: "line",
-        source: "h3-cells",
-        paint: {
-          "line-color": [
-            "case",
-            [">=", ["get", "probability"], 0.8], "#ff2448",
-            [">=", ["get", "probability"], 0.5], "#ff654f",
-            [">=", ["get", "probability"], 0.3], "#f2bd43",
-            "#37a8ff",
-          ],
-          "line-width": ["interpolate", ["linear"], ["zoom"], 3, 1, 9, 6],
-          "line-opacity": 0.24,
-          "line-blur": 4,
-        },
-      });
-      map.addLayer({
-        id: "h3-fill",
-        type: "fill",
-        source: "h3-cells",
-        paint: {
-          "fill-color": [
-            "case",
-            [">=", ["get", "probability"], 0.8], "#ff2448",
-            [">=", ["get", "probability"], 0.5], "#ff654f",
-            [">=", ["get", "probability"], 0.3], "#f2bd43",
-            "#278fdb",
-          ],
-          "fill-opacity": [
-            "interpolate", ["linear"], ["get", "window_count"],
-            0, 0.25,
-            1, 0.5,
-            8, 0.8,
-            30, 0.92,
-          ],
-        },
-      });
-      map.addLayer({
-        id: "h3-outline",
-        type: "line",
-        source: "h3-cells",
-        paint: {
-          "line-color": ["case", ["==", ["get", "h3_cell"], ""], "#ffffff", "#dbe9ff"],
-          "line-opacity": 0.78,
-          "line-width": 1,
-        },
-      });
-      map.on("click", "h3-fill", (event) => {
-        const cell = event.features?.[0]?.properties?.h3_cell;
-        if (cell) onSelectRef.current(String(cell));
-      });
-      map.on("mouseenter", "h3-fill", () => { map.getCanvas().style.cursor = "pointer"; });
-      map.on("mouseleave", "h3-fill", () => { map.getCanvas().style.cursor = ""; });
-    });
+    const drawOverlay = () => {
+      const svg = overlayRef.current;
+      const container = containerRef.current;
+      if (!svg || !container) return;
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+      svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+      const fragment = document.createDocumentFragment();
+      let visible = 0;
+
+      for (const cell of cellsRef.current) {
+        const points = cellToBoundary(cell.h3_cell).map(([lat, lng]) => map.project([lng, lat]));
+        const minX = Math.min(...points.map((point) => point.x));
+        const maxX = Math.max(...points.map((point) => point.x));
+        const minY = Math.min(...points.map((point) => point.y));
+        const maxY = Math.max(...points.map((point) => point.y));
+        if (maxX < -30 || minX > width + 30 || maxY < -30 || minY > height + 30) continue;
+
+        const probability = cell.stage1_probability;
+        const color = probability >= 0.8
+          ? "#ff2448"
+          : probability >= 0.5
+            ? "#ff654f"
+            : probability >= 0.3
+              ? "#f2bd43"
+              : "#37a8ff";
+        const count = cell.strike_counts[windowRef.current] ?? 0;
+        const opacity = Math.min(0.9, 0.3 + Math.log2(count + 1) * 0.12);
+        const polygon = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+        polygon.setAttribute("points", points.map((point) => `${point.x},${point.y}`).join(" "));
+        polygon.setAttribute("fill", color);
+        polygon.setAttribute("fill-opacity", opacity.toFixed(2));
+        polygon.setAttribute("stroke", cell.h3_cell === selectedRef.current ? "#ffffff" : color);
+        polygon.setAttribute("stroke-width", cell.h3_cell === selectedRef.current ? "3" : "1.25");
+        polygon.style.color = color;
+        polygon.setAttribute("data-risk", riskLabel(probability).className);
+        polygon.setAttribute("data-cell", cell.h3_cell);
+        polygon.setAttribute("aria-label", `${cell.h3_cell}, ${Math.round(probability * 100)}% strike probability`);
+        polygon.addEventListener("click", () => onSelectRef.current(cell.h3_cell));
+        fragment.appendChild(polygon);
+        visible += 1;
+      }
+
+      svg.replaceChildren(fragment);
+      container.dataset.h3Cells = String(cellsRef.current.length);
+      container.dataset.h3Visible = String(visible);
+      container.dataset.mapZoom = map.getZoom().toFixed(2);
+    };
+    drawOverlayRef.current = drawOverlay;
+    map.on("load", drawOverlay);
+    map.on("move", drawOverlay);
+    map.on("resize", drawOverlay);
     mapRef.current = map;
     return () => { map.remove(); mapRef.current = null; };
   }, []);
@@ -260,28 +239,18 @@ function H3Map({
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
+    cellsRef.current = cells;
+    windowRef.current = windowKey;
+    selectedRef.current = selectedCell;
     const update = () => {
-      const source = map.getSource("h3-cells") as maplibregl.GeoJSONSource | undefined;
-      source?.setData(cellsGeoJson(cells, windowKey));
-      if (map.getLayer("h3-outline")) {
-        map.setPaintProperty("h3-outline", "line-color", [
-          "case",
-          ["==", ["get", "h3_cell"], selectedCell ?? ""], "#ffffff",
-          "#dbe9ff",
-        ]);
-        map.setPaintProperty("h3-outline", "line-width", [
-          "case",
-          ["==", ["get", "h3_cell"], selectedCell ?? ""], 3,
-          1,
-        ]);
-      }
+      drawOverlayRef.current();
       if (fitKey && fitKey !== lastFitKeyRef.current && cells.length) {
         const focus = [...cells].sort((a, b) => {
           const countDelta = (b.strike_counts[windowKey] ?? 0) - (a.strike_counts[windowKey] ?? 0);
           return countDelta || b.stage1_probability - a.stage1_probability;
         })[0];
         const [lat, lng] = cellToLatLng(focus.h3_cell);
-        map.easeTo({ center: [lng, lat], zoom: 7.4, duration: 900 });
+        map.easeTo({ center: [lng, lat], zoom: 10.2, duration: 900 });
         lastFitKeyRef.current = fitKey;
       }
     };
@@ -291,10 +260,15 @@ function H3Map({
   useEffect(() => {
     if (!selectedCell || !mapRef.current) return;
     const [lat, lng] = cellToLatLng(selectedCell);
-    mapRef.current.easeTo({ center: [lng, lat], zoom: Math.max(8.2, mapRef.current.getZoom()), duration: 650 });
+    mapRef.current.easeTo({ center: [lng, lat], zoom: Math.max(10.4, mapRef.current.getZoom()), duration: 650 });
   }, [selectedCell]);
 
-  return <div ref={containerRef} className="map-canvas" aria-label="Interactive map of live H3 risk cells" />;
+  return (
+    <div className="map-stage">
+      <div ref={containerRef} className="map-canvas" aria-label="Interactive map of live H3 risk cells" />
+      <svg ref={overlayRef} className="h3-overlay" role="img" aria-label="H3 lightning probability surface" />
+    </div>
+  );
 }
 
 function metric(value: number, digits = 0) {

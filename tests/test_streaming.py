@@ -182,3 +182,30 @@ def test_dashboard_state_summarizes_h3_predictions():
     assert snapshot["summary"]["e2e_p95_ms"] == 12.5
     assert snapshot["cells"][0]["h3_cell"] == cell
     assert snapshot["cells"][0]["strike_counts"]["30m"] == 1
+
+
+def test_dashboard_gate_metrics_include_candidates_outside_display_limit():
+    client = fakeredis.FakeRedis(decode_responses=False)
+    now_s = int(time.time())
+    strike_cell = "8744a1d92ffffff"
+    candidate_cell = "8744a1d93ffffff"
+    for cell, prediction, event_type, score in (
+        (strike_cell, 1, "strike", now_s),
+        (candidate_cell, 0, "candidate", now_s - 1),
+    ):
+        stage1 = {
+            "prediction": prediction,
+            "probability": 0.8 if prediction else 0.08,
+            "timestamp": score,
+            "metadata": {"event_type": event_type},
+        }
+        client.setex(f"prediction:{cell}:stage1", 300, json.dumps(stage1))
+        client.setex(f"prediction:{cell}:stage2", 300, json.dumps({"prediction": 0}))
+        client.zadd("prediction:recent", {cell: score})
+
+    snapshot = build_dashboard_state(client, limit=1)
+
+    assert snapshot["summary"]["active_cells"] == 1
+    assert snapshot["summary"]["candidate_cells"] == 1
+    assert snapshot["summary"]["stage2_skip_rate"] == 1.0
+    assert snapshot["cells"][0]["h3_cell"] == strike_cell
