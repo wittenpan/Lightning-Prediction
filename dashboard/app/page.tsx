@@ -353,7 +353,7 @@ export default function Home() {
         <div className="top-meta">
           <span>H3 RES 7</span>
           <span>15M FORECAST</span>
-          <span>UPDATED {utcTime(snapshot.generated_at)}</span>
+          <span suppressHydrationWarning>UPDATED {utcTime(snapshot.generated_at)}</span>
         </div>
         <div className={`status ${mode === "demo" ? "preview" : connected ? "online" : "offline"}`}>
           <i />{mode === "demo" ? "SCENARIO" : connected ? "LIVE" : "OFFLINE"}
