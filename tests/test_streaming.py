@@ -6,10 +6,12 @@ import fakeredis
 import pytest
 
 from src.streaming.consumer import LightningPredictionConsumer
+from src.streaming.candidate_producer import CandidateCellProducer
 from src.streaming.models import TwoStageXGBoostCascade
 from src.streaming.producer import LightningStrikeProducer
 from src.streaming.redis_cache import LightningCache
 from src.streaming.schema import decode_blitzortung_message, make_event, normalize_timestamp_us
+from src.streaming.settings import Settings
 from src.dashboard.api import build_dashboard_state
 
 
@@ -118,6 +120,43 @@ def test_committed_cascade_loads_tuned_thresholds_and_gates():
     assert cascade.stage2_skip_rate == 1.0
 
 
+class CapturingProducer:
+    def __init__(self):
+        self.messages = []
+
+    def send(self, topic, key, value):
+        self.messages.append((topic, key, value))
+
+    def flush(self):
+        return None
+
+    def close(self):
+        return None
+
+
+def test_candidate_producer_scores_neighbors_without_adding_strikes():
+    client = fakeredis.FakeRedis(decode_responses=False)
+    seed = "8744a1d92ffffff"
+    now_us = int(time.time() * 1_000_000)
+    client.zadd(f"strikes:{seed}", {"strike-a": now_us})
+    producer = CapturingProducer()
+    service = CandidateCellProducer(
+        Settings(),
+        seed_limit=1,
+        ring=1,
+        redis_client=client,
+        producer=producer,
+    )
+
+    count = service.publish_cycle()
+
+    assert count == 7
+    assert len(producer.messages) == 7
+    assert all(message[2]["event_type"] == "candidate" for message in producer.messages)
+    assert all(message[2]["h3_cell"] for message in producer.messages)
+    assert client.zcard(f"strikes:{seed}") == 1
+
+
 def test_dashboard_state_summarizes_h3_predictions():
     client = fakeredis.FakeRedis(decode_responses=False)
     cell = "8744a1d92ffffff"
@@ -131,11 +170,15 @@ def test_dashboard_state_summarizes_h3_predictions():
     stage2 = {"prediction": 0, "probability": 0.33, "timestamp": now_s}
     client.setex(f"prediction:{cell}:stage1", 300, json.dumps(stage1))
     client.setex(f"prediction:{cell}:stage2", 300, json.dumps(stage2))
+    now_us = int(time.time() * 1_000_000)
+    client.zadd(f"strikes:{cell}", {"strike-a": now_us - 30_000_000})
 
     snapshot = build_dashboard_state(client)
 
     assert snapshot["summary"]["active_cells"] == 1
     assert snapshot["summary"]["stage1_positive_cells"] == 1
     assert snapshot["summary"]["stage2_skip_rate"] == 0.0
+    assert snapshot["summary"]["strikes_by_window"] == {"1m": 1, "5m": 1, "30m": 1}
     assert snapshot["summary"]["e2e_p95_ms"] == 12.5
     assert snapshot["cells"][0]["h3_cell"] == cell
+    assert snapshot["cells"][0]["strike_counts"]["30m"] == 1

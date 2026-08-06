@@ -71,6 +71,28 @@ services:
       - lightning-network
     restart: unless-stopped
 
+  candidate-producer:
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+    init: true
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      prediction-service:
+        condition: service_started
+    command: ["python", "-m", "src.streaming.candidate_producer", "--interval", "60", "--seed-limit", "24"]
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_INPUT_TOPIC: lightning-strikes
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    networks:
+      - lightning-network
+    restart: unless-stopped
+
   dashboard-api:
     build:
       context: .

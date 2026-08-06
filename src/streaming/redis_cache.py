@@ -325,6 +325,13 @@ class LightningCache:
                 self.PREDICTION_TTL,
                 json.dumps(payload),
             )
+        pipeline.zadd("prediction:recent", {h3_cell: timestamp_s})
+        pipeline.zremrangebyscore(
+            "prediction:recent",
+            "-inf",
+            timestamp_s - self.PREDICTION_TTL,
+        )
+        pipeline.expire("prediction:recent", self.PREDICTION_TTL)
         pipeline.execute()
 
     def get_prediction(

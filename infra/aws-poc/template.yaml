@@ -391,6 +391,68 @@ Resources:
               - Effect: Allow
                 Action: cloudformation:DeleteStack
                 Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}/*
+              # CloudFormation uses the caller's credentials when no service
+              # role is attached to the stack. These are the lifecycle actions
+              # required to remove the resource types in this POC.
+              - Effect: Allow
+                Action:
+                  - budgets:DeleteBudget
+                  - budgets:DescribeBudget
+                  - ec2:DeleteInternetGateway
+                  - ec2:DeleteRoute
+                  - ec2:DeleteRouteTable
+                  - ec2:DeleteSecurityGroup
+                  - ec2:DeleteSubnet
+                  - ec2:DeleteTags
+                  - ec2:DeleteVpc
+                  - ec2:DescribeInstances
+                  - ec2:DescribeInternetGateways
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DescribeRouteTables
+                  - ec2:DescribeSecurityGroups
+                  - ec2:DescribeSubnets
+                  - ec2:DescribeVpcs
+                  - ec2:DetachInternetGateway
+                  - ec2:DisassociateRouteTable
+                  - ec2:RevokeSecurityGroupEgress
+                  - ec2:RevokeSecurityGroupIngress
+                  - ec2:TerminateInstances
+                  - elasticache:DeleteCacheSubnetGroup
+                  - elasticache:DeleteReplicationGroup
+                  - elasticache:DescribeCacheSubnetGroups
+                  - elasticache:DescribeReplicationGroups
+                  - elasticache:ListTagsForResource
+                  - elasticache:RemoveTagsFromResource
+                  - events:DeleteRule
+                  - events:DescribeRule
+                  - events:ListTargetsByRule
+                  - events:RemoveTargets
+                  - iam:DeleteInstanceProfile
+                  - iam:DeleteRole
+                  - iam:DeleteRolePolicy
+                  - iam:GetInstanceProfile
+                  - iam:GetRole
+                  - iam:GetRolePolicy
+                  - iam:ListInstanceProfilesForRole
+                  - iam:ListRolePolicies
+                  - iam:RemoveRoleFromInstanceProfile
+                  - kafka:DeleteCluster
+                  - kafka:DescribeCluster
+                  - kafka:DescribeClusterV2
+                  - kafka:ListTagsForResource
+                  - kafka:UntagResource
+                  - lambda:DeleteFunction
+                  - lambda:GetFunction
+                  - lambda:GetFunctionConfiguration
+                  - lambda:RemovePermission
+                  - logs:DeleteLogGroup
+                  - sns:DeleteTopic
+                  - sns:GetSubscriptionAttributes
+                  - sns:GetTopicAttributes
+                  - sns:ListSubscriptionsByTopic
+                  - sns:SetTopicAttributes
+                  - sns:Unsubscribe
+                Resource: "*"
               - Effect: Allow
                 Action:
                   - logs:CreateLogGroup

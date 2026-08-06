@@ -173,9 +173,14 @@ class LightningPredictionConsumer:
         longitude = float(strike["longitude"])
         timestamp_us = normalize_timestamp_us(strike["timestamp"])
         event_id = str(strike.get("event_id", f"{timestamp_us}:{latitude}:{longitude}"))
-        h3_cell = self.lat_lon_to_h3(latitude, longitude)
+        event_type = str(strike.get("event_type", "strike"))
+        h3_cell = str(strike.get("h3_cell") or self.lat_lon_to_h3(latitude, longitude))
 
-        self.cache.add_strike(h3_cell, timestamp_us, event_id=event_id)
+        # Candidate events score surrounding cells without fabricating a
+        # lightning observation. They make the online serving distribution
+        # match the candidate-cell population used to evaluate the gate.
+        if event_type != "candidate":
+            self.cache.add_strike(h3_cell, timestamp_us, event_id=event_id)
         features = self.compute_features(h3_cell, timestamp_us)
         prediction = self.cascade.predict(features)
         predicted_at_ns = time.time_ns()
@@ -188,6 +193,7 @@ class LightningPredictionConsumer:
             timestamp_s=timestamp_us // 1_000_000,
             metadata={
                 "event_id": event_id,
+                "event_type": event_type,
                 "latitude": latitude,
                 "longitude": longitude,
                 "processing_ms": round(processing_latency_ms, 3),
@@ -196,6 +202,7 @@ class LightningPredictionConsumer:
         )
         output = {
             "event_id": event_id,
+            "event_type": event_type,
             "h3_cell": h3_cell,
             "latitude": latitude,
             "longitude": longitude,

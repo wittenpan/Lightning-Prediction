@@ -1,18 +1,17 @@
-# StormSignal dashboard
+# StormSignal local operations console
 
-A private H3 operations view for the real-time lightning pipeline. It renders
-recent Redis prediction state as MapLibre polygons and summarizes event volume,
-active cells, cascade skip rate, prediction latency, and model probabilities.
+The dashboard is intentionally local-only. It renders live H3 predictions from
+the loopback dashboard API and never exposes Redis, Kafka, or EC2 publicly.
 
-## Local development
+## Run locally
 
-From the repository root, start the streaming stack and loopback API:
+From the repository root, start the local pipeline and API:
 
 ```bash
 docker compose --profile dashboard up -d --build
 ```
 
-Then run the UI:
+Start the frontend in a second terminal:
 
 ```bash
 cd dashboard
@@ -20,16 +19,16 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:3000`. Preview mode uses deterministic sample data. Live
-mode polls `http://127.0.0.1:8765/api/state` every two seconds.
+Open `http://127.0.0.1:3000`.
 
-## AWS connection
+## View the AWS POC privately
 
-The EC2 security group has no inbound application ports. Start the SSM tunnel
-printed by the CloudFormation `DashboardPortForwardCommand` output, visit the
-private hosted dashboard, and select **Live AWS**. The tunnel exposes neither
-Redis nor the dashboard API publicly. If a browser blocks hosted-to-loopback
-access, run `npm run dev` and use `http://localhost:3000` instead.
+Start the SSM port-forward command printed by the CloudFormation stack. It maps
+the EC2 API to `127.0.0.1:8765`. Keep the tunnel running, start this frontend,
+and select **AWS LIVE**. No inbound application port is opened in AWS.
 
-This is a portfolio/engineering observability view, not a safety-grade weather
-warning product.
+The 1-, 5-, and 30-minute controls change the strike-density window used to
+rank and emphasize cells. Cell color represents the stage-one probability:
+blue is low, yellow is watch, orange is at least 50%, and red is at least 80%.
+
+This is an engineering proof of concept, not a safety-grade warning product.

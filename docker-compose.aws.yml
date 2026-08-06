@@ -20,6 +20,20 @@ services:
     command: ["python", "-m", "src.streaming.consumer"]
     restart: unless-stopped
 
+  candidate-producer:
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+    init: true
+    env_file: .env.aws
+    depends_on:
+      topic-init:
+        condition: service_completed_successfully
+      prediction-service:
+        condition: service_started
+    command: ["python", "-m", "src.streaming.candidate_producer", "--interval", "60", "--seed-limit", "24"]
+    restart: unless-stopped
+
   dashboard-api:
     build:
       context: .
