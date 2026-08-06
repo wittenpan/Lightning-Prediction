@@ -147,7 +147,20 @@ def build_dashboard_state(client: redis.Redis, limit: int = 500) -> dict[str, An
         name: sum(row["strike_counts"][name] for row in rows)
         for name in WINDOWS_US
     }
-    display_rows = rows[:limit]
+    # Keep quiet candidate cells visible beside observed strikes. A pure
+    # recency slice is quickly saturated by the live feed and produces an
+    # all-red surface even while the cascade is actively rejecting cells.
+    candidate_slots = min(len(candidate_rows), limit // 4)
+    observed_rows = [row for row in rows if row["event_type"] != "candidate"]
+    display_rows = observed_rows[: limit - candidate_slots] + candidate_rows[:candidate_slots]
+    selected_cells = {row["h3_cell"] for row in display_rows}
+    for row in rows:
+        if len(display_rows) >= limit:
+            break
+        if row["h3_cell"] not in selected_cells:
+            display_rows.append(row)
+            selected_cells.add(row["h3_cell"])
+    display_rows.sort(key=lambda row: row["updated_at"], reverse=True)
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "summary": {

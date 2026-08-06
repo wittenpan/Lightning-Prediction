@@ -209,3 +209,31 @@ def test_dashboard_gate_metrics_include_candidates_outside_display_limit():
     assert snapshot["summary"]["candidate_cells"] == 1
     assert snapshot["summary"]["stage2_skip_rate"] == 1.0
     assert snapshot["cells"][0]["h3_cell"] == strike_cell
+
+
+def test_dashboard_reserves_map_space_for_candidate_cells():
+    client = fakeredis.FakeRedis(decode_responses=False)
+    now_s = int(time.time())
+    cells = [
+        "8744a1d92ffffff",
+        "8744a1d93ffffff",
+        "8744a1d94ffffff",
+        "8744a1d95ffffff",
+        "8744a1d96ffffff",
+    ]
+    for index, cell in enumerate(cells):
+        is_candidate = index == len(cells) - 1
+        stage1 = {
+            "prediction": 0 if is_candidate else 1,
+            "probability": 0.08 if is_candidate else 0.8,
+            "timestamp": now_s - index,
+            "metadata": {"event_type": "candidate" if is_candidate else "strike"},
+        }
+        client.setex(f"prediction:{cell}:stage1", 300, json.dumps(stage1))
+        client.setex(f"prediction:{cell}:stage2", 300, json.dumps({"prediction": 0}))
+        client.zadd("prediction:recent", {cell: now_s - index})
+
+    snapshot = build_dashboard_state(client, limit=4)
+
+    assert len(snapshot["cells"]) == 4
+    assert any(row["event_type"] == "candidate" for row in snapshot["cells"])
