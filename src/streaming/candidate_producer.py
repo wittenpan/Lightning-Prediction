@@ -30,8 +30,8 @@ class CandidateCellProducer:
         self,
         settings: Settings,
         *,
-        seed_limit: int = 24,
-        ring: int = 1,
+        seed_limit: int = 5,
+        ring: int = 4,
         redis_client: Optional[redis.Redis] = None,
         producer: Optional[KafkaProducer] = None,
     ) -> None:
@@ -80,7 +80,9 @@ class CandidateCellProducer:
     def candidate_cells(self, now_us: int) -> list[str]:
         candidates: set[str] = set()
         for cell in self.recent_seed_cells(now_us):
-            candidates.update(h3.grid_disk(cell, self.ring))
+            # Score a quiet perimeter far enough away that the seed strike is
+            # outside the model's two-ring neighborhood features.
+            candidates.update(h3.grid_ring(cell, self.ring))
         return sorted(candidates)
 
     def publish_cycle(self) -> int:
@@ -110,9 +112,9 @@ class CandidateCellProducer:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Score H3 cells around live strikes")
-    parser.add_argument("--interval", type=float, default=60.0)
-    parser.add_argument("--seed-limit", type=int, default=24)
-    parser.add_argument("--ring", type=int, default=1)
+    parser.add_argument("--interval", type=float, default=120.0)
+    parser.add_argument("--seed-limit", type=int, default=5)
+    parser.add_argument("--ring", type=int, default=4)
     parser.add_argument("--once", action="store_true")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
