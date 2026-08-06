@@ -415,7 +415,7 @@ export default function Home() {
           <small>Probability ≥ 50%</small>
         </article>
         <article className="accent-metric">
-          <span>STAGE 2 AVOIDED</span>
+          <span>CANDIDATE GATE SKIP</span>
           <strong>{metric(snapshot.summary.stage2_skip_rate * 100, 1)}<em>%</em></strong>
           <small>{snapshot.summary.candidate_cells ?? 0} candidates evaluated</small>
         </article>

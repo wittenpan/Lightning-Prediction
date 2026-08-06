@@ -143,15 +143,15 @@ def test_candidate_producer_scores_neighbors_without_adding_strikes():
     service = CandidateCellProducer(
         Settings(),
         seed_limit=1,
-        ring=4,
+        ring=12,
         redis_client=client,
         producer=producer,
     )
 
     count = service.publish_cycle()
 
-    assert count == 24
-    assert len(producer.messages) == 24
+    assert count == 72
+    assert len(producer.messages) == 72
     assert all(message[2]["event_type"] == "candidate" for message in producer.messages)
     assert all(message[2]["h3_cell"] for message in producer.messages)
     assert client.zcard(f"strikes:{seed}") == 1

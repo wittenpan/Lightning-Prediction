@@ -127,7 +127,16 @@ def build_dashboard_state(client: redis.Redis, limit: int = 500) -> dict[str, An
 
     rows.sort(key=lambda row: row["updated_at"], reverse=True)
     stage2_calls = sum(int(row["stage2_executed"]) for row in rows)
-    e2e_values = sorted(row["e2e_ms"] for row in rows if row["e2e_ms"] > 0)
+    candidate_rows = [row for row in rows if row["event_type"] == "candidate"]
+    gate_rows = candidate_rows or rows
+    gate_stage2_calls = sum(int(row["stage2_executed"]) for row in gate_rows)
+    # Scheduled candidate sweeps measure gate efficiency; live-observation
+    # latency remains the user-facing ingestion SLO.
+    e2e_values = sorted(
+        row["e2e_ms"]
+        for row in rows
+        if row["event_type"] != "candidate" and row["e2e_ms"] > 0
+    )
     p95_index = max(0, min(len(e2e_values) - 1, int(len(e2e_values) * 0.95)))
     strikes_by_window = {
         name: sum(row["strike_counts"][name] for row in rows)
@@ -146,7 +155,8 @@ def build_dashboard_state(client: redis.Redis, limit: int = 500) -> dict[str, An
             "strikes_1m": strikes_by_window["1m"],
             "strikes_5m": strikes_by_window["5m"],
             "strikes_30m": strikes_by_window["30m"],
-            "stage2_skip_rate": 1.0 - stage2_calls / len(rows) if rows else 0.0,
+            "stage2_skip_rate": 1.0 - gate_stage2_calls / len(gate_rows) if gate_rows else 0.0,
+            "overall_stage2_skip_rate": 1.0 - stage2_calls / len(rows) if rows else 0.0,
             "e2e_p95_ms": e2e_values[p95_index] if e2e_values else 0.0,
         },
         "cells": rows,

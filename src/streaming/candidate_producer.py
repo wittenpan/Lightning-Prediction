@@ -30,14 +30,16 @@ class CandidateCellProducer:
         self,
         settings: Settings,
         *,
-        seed_limit: int = 5,
-        ring: int = 4,
+        seed_limit: int = 2,
+        ring: int = 12,
+        publish_rate: float = 0.0,
         redis_client: Optional[redis.Redis] = None,
         producer: Optional[KafkaProducer] = None,
     ) -> None:
         self.settings = settings
         self.seed_limit = seed_limit
         self.ring = ring
+        self.publish_rate = publish_rate
         self.redis = redis_client or redis.Redis(
             host=settings.redis_host,
             port=settings.redis_port,
@@ -102,6 +104,8 @@ class CandidateCellProducer:
             event["event_type"] = "candidate"
             event["h3_cell"] = cell
             self.producer.send(self.settings.input_topic, key=event["event_id"], value=event)
+            if self.publish_rate > 0:
+                time.sleep(1.0 / self.publish_rate)
         self.producer.flush()
         return len(cells)
 
@@ -113,8 +117,9 @@ class CandidateCellProducer:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Score H3 cells around live strikes")
     parser.add_argument("--interval", type=float, default=120.0)
-    parser.add_argument("--seed-limit", type=int, default=5)
-    parser.add_argument("--ring", type=int, default=4)
+    parser.add_argument("--seed-limit", type=int, default=2)
+    parser.add_argument("--ring", type=int, default=12)
+    parser.add_argument("--rate", type=float, default=1.0)
     parser.add_argument("--once", action="store_true")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -123,6 +128,7 @@ def main() -> None:
         Settings.from_env(),
         seed_limit=args.seed_limit,
         ring=args.ring,
+        publish_rate=args.rate,
     )
     try:
         while True:

@@ -83,7 +83,7 @@ services:
         condition: service_healthy
       prediction-service:
         condition: service_started
-    command: ["python", "-m", "src.streaming.candidate_producer", "--interval", "120", "--seed-limit", "5", "--ring", "4"]
+    command: ["python", "-m", "src.streaming.candidate_producer", "--interval", "120", "--seed-limit", "2", "--ring", "12", "--rate", "1"]
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       KAFKA_INPUT_TOPIC: lightning-strikes
