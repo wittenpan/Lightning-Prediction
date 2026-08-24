@@ -35,10 +35,6 @@ Blitzortung websocket
   test artifact. This is an engineering/ML portfolio system, not a safety-grade
   weather warning product.
 
-The defensible résumé phrasing is “reduced expensive second-stage model
-invocations by 98%.” That is more precise than claiming a 98% reduction in total
-CPU time.
-
 ## Run locally
 
 Prerequisites: Docker Desktop and Docker Compose v2.
@@ -118,8 +114,6 @@ connection information from environment variables in [`.env.example`](.env.examp
 - `self-hosted` mode puts Kafka and Redis on EC2 for a lower-cost smoke test.
 - `managed` mode uses MSK and ElastiCache for a short, explicitly cost-confirmed
   résumé proof; it is not assumed to be universally free.
-- Budget alerts and an automatic stack-deletion timer are included as cost
-  guardrails.
 
 ## Key implementation details
 
